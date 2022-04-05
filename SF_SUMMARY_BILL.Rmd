@@ -1,0 +1,343 @@
+---
+title: "SF Summary"
+output: pdf_document
+date: '2022-03-14'
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Get the input date
+
+```{r message=FALSE}
+library(sf)
+```
+
+## Creat simple sf object
+
+```{r}
+p <- rbind(c(10, 40), c(40, 30), c(20, 20), c(30, 10))
+(mp <- st_multipoint(p))
+
+# ?st_multipoint()
+class(mp)
+
+plot(mp)
+```
+
+
+## County data
+
+- An `sf` object is a standard R `data.frame` extended with spatial data (geometry) and spatial operations.
+
+- Note that under `geometry` it says, multipolygon
+
+```{r}
+# this is shape file
+counties <- st_read("~/GitHub/R-Geospatial-Fundamentals/notebook_data/california_counties")
+
+str(counties)
+head(counties)
+
+#This returns a **choropleth** map of median male age, by county!
+plot(counties['MED_AGE'])
+plot(counties['HSE_UNITS'])
+```
+
+- Based on the output of the head command below, can you guess why they call the geometry column `sticky`?
+
+```{r}
+counties2 = counties[c('NAME','POP2012','MED_AGE')]
+head(counties2)
+```
+
+### How to subset county
+
+```{r}
+alameda_county = counties[counties$NAME == 'Alameda',]
+# Plot our newly subsetted sf object
+plot(alameda_county$geometry, col='pink', border='green', lwd=3, main='Alameda County, Why not?')
+```
+
+### How to save a file
+
+```{r}
+st_write(alameda_county, 
+         paste0(getwd(),"/alameda_county/","alameda_county.shp"),
+         delete_dsn = T)
+
+st_write(alameda_county, 
+         paste0(getwd(),"/alameda_county/","alameda_county.json"),
+         driver = "GeoJSON",
+         delete_dsn = T)
+```
+
+\break
+
+# Coordiate translation
+
+## US State shape file
+
+```{r}
+states <- st_read("~/GitHub/R-Geospatial-Fundamentals/notebook_data/us_states")
+# Plot our states data
+plot(states['STATE'])
+```
+
+- Beyond the 50 states we seem to have American Samoa, Puerto Rico, Guam, Commonwealth of the Northern Mariana Islands, and United States Virgin Islands included in this spatial dataframe. To make our map cleaner, let's limit the states to the contiguous states (so we'll also exclude Alaska and Hawaii).
+
+```{r}
+# Define list of non-contiguous states
+non_contiguous_us = c('American Samoa',
+                      'Puerto Rico',
+                      'Guam',
+                      'Commonwealth of the Northern Mariana Islands',
+                      'United States Virgin Islands', 
+                      'Alaska',
+                      'Hawaii')
+
+# Limit data according to above list
+states_limited = states[!states$STATE %in% non_contiguous_us, ]
+```
+
+```{r}
+# Plot it
+plot(states_limited['STATE'])
+```
+
+To prepare for our mapping overlay, let's make our states a nice, bold color.
+
+```{r, label='lower48'}
+plot(states_limited$geometry, 
+     col = 'blue', 
+     border = 'red', 
+     lwd = 1)
+```
+
+## Plotting maps with different coordiate system
+
+- Does it display the information as it supposed to?
+
+```{r}
+plot(counties$geometry, col = 'lightgrey', border = 'white')
+plot(states_limited$geometry, col = 'blue', border = 'red', lwd = 5, add = T)
+```
+
+- Notice the boundary condition is not the same
+
+```{r, label='bboxes'}
+print(st_bbox(counties))
+print(st_bbox(states_limited))
+```
+
+- Different coordiate system
+
+```{r}
+st_crs(counties)[1]
+st_crs(states_limited)[1]
+```
+
+## Converting
+
+```{r}
+# Convert the states data to Web Mercator
+states_limited_3857 = st_transform(states_limited, crs = 3857)
+counties_3857 = st_transform(counties, crs = 3857)
+
+st_crs(states_limited_3857)[1]
+st_crs(counties_3857)[1]
+```
+
+- Another way of converting
+
+We can also do the transformation the following way to make sure the CRS values match:
+
+```{r}
+# Make sure the CRSs match!
+counties_3857 = st_transform(counties, st_crs(states_limited_3857))
+```
+
+
+```{r}
+par(mfrow=c(1,2))
+
+# plot geographic sf data.frame
+plot(states_limited$geometry, asp = 1)
+
+# plot utm sf data.frame
+plot(states_limited_3857$geometry, asp = 1)
+
+# reset plot rows/cols
+par(mfrow=c(1,1))
+```
+
+- Correct display
+
+```{r}
+plot(states_limited_3857$geometry, col = 'lightgrey')
+plot(counties_3857$geometry, col='darkgreen', add=T)
+```
+
+\break
+
+# Add more data on the map
+
+## R packages for Mapping `sf` objects
+
+There are many different packages you can use to make maps of `sf` data, including:
+
+- `ggplot2`: which is fantastic if you are already a ggplot user
+- `mapview`: for a quick and easy interactive map
+- `tmap`: for great custom static and interactive maps
+- `leaflet`: for highly custom interactive maps that you can output and host on a website
+- `shiny`: for interactive R based applications that use leaflet maps
+
+```{r}
+ca_places <- st_read("~/GitHub/R-Geospatial-Fundamentals/notebook_data/census/Places")
+plot(counties$geometry, col='tan', border='darkgreen', main="CA counties")
+```
+
+## GGPLOT
+
+```{r}
+library(ggplot2)
+
+ggplot(counties, aes(fill = MED_AGE)) + 
+  geom_sf() +  # tells ggplot that geographic data are being plotted
+  scale_fill_viridis_c() +
+  theme_minimal() + 
+  labs(title = "2010 Median Age by County")
+
+```
+
+## tamp
+
+- The following code snip creates a simple quick map
+
+```{r}
+# load tmap
+library(tmap)
+
+# plot a 'quick tmap'
+qtm(counties)
+```
+
+- When you run the following, it say `The shape counties is invalid`
+
+```{r}
+ttm()
+qtm(counties)
+```
+
+- Fix it and run the code again
+
+```{r}
+# make tmap fix invalid polygons
+tmap_options(check.and.fix = TRUE)
+
+ttm()
+qtm(counties)
+```
+
+That’s outstanding! We get a clickable, scrollable, zoomable map built with the Leaflet Javascript library… right out of the box!
+
+You can change the basemap using the Layer Control under the Zoom Controls.
+And to create thematic maps, we can use tmap’s more verbose mapping functions to create a new tmap object and then add geometry layers to it, setting different aesthetic aspects of those layers.
+
+For now, let’s recreate that same map we made above with plot, but this time using tmap syntax:
+
+```{r}
+tm_shape(counties)+  # use the `tm_shape` function to create a tmap object
+  tm_polygons(col = 'tan', # add `tm_polygons` layer, coloring as before
+              border.col = 'darkgreen', 
+              alpha = 0.5) # & making transparent
+```
+
+```{r}
+tm_shape(counties)+  # use the `tm_shape` function to create a tmap object
+  tm_polygons(border.col = 'darkgreen', 
+              alpha = 0.5) # & making transparent
+```
+
+
+```{r}
+bike_blvds <- st_read("~/GitHub/R-Geospatial-Fundamentals/notebook_data/transportation/BerkeleyBikeBlvds.geojson")
+
+plot(bike_blvds$geometry)
+```
+
+### Create interactive map
+
+Our bike boulevard data includes the following information:
+
+- BB_STRNAM - bike boulevard Streetname
+- BB_STRID - bike boulevard Street ID
+- BB_FRO - bike boulevard origin street
+- BB_TO - bike boulevard end street
+- BB_SECID- bike boulevard section id
+- DIR_ - cardinal directions the bike boulevard runs
+- Status - status on whether the bike boulevard exists
+- ALT_bikeCA - ?
+- Shape_len - length of the boulevard in meters
+- len_km - length of the boulevard in kilometers
+- geometry
+
+```{r}
+# set to interactive view mode
+tmap_mode('view')
+
+tm_shape(bike_blvds) +
+  tm_lines()
+```
+
+- Add Alameda County Schools
+
+```{r}
+schools_df <- read.csv("~/GitHub/R-Geospatial-Fundamentals/notebook_data/alco_schools.csv")
+class(schools_df)
+head(schools_df)
+```
+
+```{r}
+schools_sf = st_as_sf(schools_df,               # the name of the dataframe to make spatial
+                       coords = c('X', 'Y'),    # the cols in that dataframe that contain the X & Y coordinate values
+                       crs = 4326)              # the CRS, expressed as an EPSG code
+
+# Take a look at the output
+head(schools_sf[,c(1,8)])
+
+```
+
+### Plotting the point data
+
+- How to plot only one of them
+
+```{r}
+plot(schools_sf[,c(1,8)])
+```
+
+```{r}
+# 1. Subset Berkeley from CA places data
+berkeley = ca_places[ca_places$NAME == 'Berkeley',]
+
+# 2. Subset the schools to Berkeley
+berkeley_schools = schools_sf[schools_sf$City == 'Berkeley',]
+
+# 2. Overlay data on a static tmap
+tmap_mode('plot')
+
+berkeley_map <- tm_shape(berkeley) + 
+                tm_borders(col = 'blue') +
+                tm_shape(bike_blvds) + 
+                tm_lines(col = 'black') +
+                tm_shape(berkeley_schools) +
+                tm_dots(col = "purple")
+
+# 3. Overlay on interactive tmap
+ttm()
+berkeley_map
+```
+

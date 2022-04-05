@@ -1,6 +1,8 @@
 ---
 title: Geospatial Data Fundamentals in R
 output: html_document
+editor_options: 
+  chunk_output_type: console
 ---
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
@@ -124,6 +126,9 @@ Now use `st_read` to load the data into R. Take a look at the info st_read outpu
 counties = st_read(dsn = here("notebook_data", 
                               "california_counties", 
                               "CaliforniaCounties.shp"))
+
+class(counties)
+head(counties)
 ```
 
 ## 2.3 Plotting Spatial Data
@@ -132,6 +137,7 @@ One of the first things one does with geospatial data after loading it into R is
 
 ```{r, label='plot_CA', eval=T}
 # Plot out California counties
+colnames(counties)
 plot(counties)
 ```
 
@@ -141,6 +147,7 @@ That can be tedious for a large dataframe. What if we just want to map the data 
 
 ```{r, label='plot_medage'}
 plot(counties['MED_AGE'])
+plot(counties['HSE_UNITS'])
 ```
 
 This returns a **choropleth** map of median male age, by county!
@@ -265,6 +272,10 @@ You can hand code your own sf objects, but most people just read in spatial data
 ```{r, eval=T}
 p <- rbind(c(10, 40), c(40, 30), c(20, 20), c(30, 10))
 (mp <- st_multipoint(p))
+
+?st_multipoint()
+class(mp)
+
 plot(mp)
 ```
 
